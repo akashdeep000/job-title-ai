@@ -1,7 +1,7 @@
 import { parse } from 'fast-csv';
 import { createReadStream, createWriteStream } from 'fs'; // Use createReadStream and createWriteStream
 import * as fs from 'fs/promises'; // Use fs.promises for async file operations like unlink
-import { classifyJobTitles } from './ai.js';
+import { classifyJobTitles, JobClassification } from './ai.js';
 import { createRateLimiter } from './rateLimiter.js';
 import { getStandardizedJobTitle } from './standardize.js';
 
@@ -162,60 +162,95 @@ export async function processCsv(
             const currentBatch = [...rows];
             rows = [];
 
-            try {
-                if (verbose) {
-                    process.stdout.write(`Processing batch of ${currentBatch.length} job titles...\n`);
-                }
-                const classifications = await rateLimiter(() => classifyJobTitles(currentBatch));
-                if (verbose) {
-                    process.stdout.write(`Received ${classifications ? classifications.length : 0} classifications for batch.\n`);
-                }
+            const MAX_RETRIES = 3;
+            let retries = 0;
+            let batchProcessedSuccessfully = false;
 
-                if (classifications && classifications.length > 0) {
-                    for (let i = 0; i < currentBatch.length; i++) {
-                        const originalRow = currentBatch[i];
-                        const classification = classifications[i];
+            while (retries <= MAX_RETRIES && !batchProcessedSuccessfully) {
+                try {
+                    if (verbose) {
+                        process.stdout.write(`Processing batch of ${currentBatch.length} job titles (attempt ${retries + 1})...\n`);
+                    }
+                    const classifications = await rateLimiter(() => classifyJobTitles(currentBatch)) as JobClassification[];
+                    if (verbose) {
+                        process.stdout.write(`Received ${classifications ? classifications.length : 0} classifications for batch.\n`);
+                    }
 
-                        if (classification && classification.id === originalRow.id) {
-                            const standardizedTitle = getStandardizedJobTitle(
-                                classification.jobSeniority,
-                                classification.jobFunction,
-                                originalRow.prhDecisionMakerJobTitle
-                            );
+                    const allClassificationIdsInBatch = classifications && classifications.every(classification => currentBatch.some(row => row.id === classification.id));
 
-                            const outputRow: OutputRow = {
-                                id: originalRow.id,
-                                job_title: originalRow.job_title,
-                                job_function: classification.jobFunction,
-                                job_seniority: classification.jobSeniority,
-                                standardized_job_title: standardizedTitle || "N/A",
-                                confidence: classification.confidence,
-                            };
-                            const line = `${outputRow.id},"${outputRow.job_title}",${outputRow.job_function},${outputRow.job_seniority},"${outputRow.standardized_job_title}",${outputRow.confidence}`;
-                            writeStream.write(line + '\n');
+                    if (allClassificationIdsInBatch) {
+                        if (classifications && classifications.length > 0) {
+                            for (let i = 0; i < currentBatch.length; i++) {
+                                const originalRow = currentBatch[i];
+                                const classification = classifications[i];
+
+                                if (classification && classification.id === originalRow.id) {
+                                    const standardizedTitle = getStandardizedJobTitle(
+                                        classification.jobSeniority,
+                                        classification.jobFunction,
+                                        originalRow.prhDecisionMakerJobTitle
+                                    );
+
+                                    const outputRow: OutputRow = {
+                                        id: originalRow.id,
+                                        job_title: originalRow.job_title,
+                                        job_function: classification.jobFunction,
+                                        job_seniority: classification.jobSeniority,
+                                        standardized_job_title: standardizedTitle || "N/A",
+                                        confidence: classification.confidence,
+                                    };
+                                    const line = `${outputRow.id},"${escapeCsvField(outputRow.job_title)}",${outputRow.job_function},${outputRow.job_seniority},"${escapeCsvField(outputRow.standardized_job_title)}",${outputRow.confidence}`;
+                                    writeStream.write(line + '\n');
+                                    if (verbose) {
+                                        process.stdout.write(`Processed row ${originalRow.id}: ${originalRow.job_title} -> ${standardizedTitle}\n`);
+                                    }
+                                } else {
+                                    if (verbose) {
+                                        const reason = classification ? `ID mismatch (expected ${originalRow.id}, got ${classification.id})` : "classification failed";
+                                        process.stdout.write(`Classification error for row with id: "${originalRow.id}" (${reason}). Writing error row.\n`);
+                                    }
+                                    const errorOutputRow: OutputRow = {
+                                        id: originalRow.id,
+                                        job_title: originalRow.job_title,
+                                        job_function: "Error",
+                                        job_seniority: "Error",
+                                        standardized_job_title: "Error",
+                                        confidence: 0,
+                                    };
+                                    const line = `${errorOutputRow.id},"${escapeCsvField(errorOutputRow.job_title)}",${errorOutputRow.job_function},${errorOutputRow.job_seniority},"${escapeCsvField(errorOutputRow.standardized_job_title)}",${errorOutputRow.confidence}`;
+                                    writeStream.write(line + '\n');
+                                }
+                            }
+                        }
+                        batchProcessedSuccessfully = true;
+                    } else {
+                        retries++;
+                        if (retries <= MAX_RETRIES) {
                             if (verbose) {
-                                process.stdout.write(`Processed row ${originalRow.id}: ${originalRow.job_title} -> ${standardizedTitle}\n`);
+                                process.stdout.write(`Classification IDs do not exactly match input row IDs. Retrying batch (attempt ${retries}).\n`);
                             }
                         } else {
                             if (verbose) {
-                                const reason = classification ? `ID mismatch (expected ${originalRow.id}, got ${classification.id})` : "classification failed";
-                                process.stdout.write(`Classification error for row with id: "${originalRow.id}" (${reason}). Writing error row.\n`);
+                                process.stdout.write(`Classification IDs do not exactly match input row IDs after ${MAX_RETRIES} attempts. Writing original rows with error status.\n`);
                             }
-                            const errorOutputRow: OutputRow = {
-                                id: originalRow.id,
-                                job_title: originalRow.job_title,
-                                job_function: "Error",
-                                job_seniority: "Error",
-                                standardized_job_title: "Error",
-                                confidence: 0,
-                            };
-                            const line = `${errorOutputRow.id},"${errorOutputRow.job_title}",${errorOutputRow.job_function},${errorOutputRow.job_seniority},"${errorOutputRow.standardized_job_title}",${errorOutputRow.confidence}`;
-                            writeStream.write(line + '\n');
+                            currentBatch.forEach(originalRow => {
+                                const errorOutputRow: OutputRow = {
+                                    id: originalRow.id,
+                                    job_title: originalRow.job_title,
+                                    job_function: "Error",
+                                    job_seniority: "Error",
+                                    standardized_job_title: "Error",
+                                    confidence: 0,
+                                };
+                                const line = `${errorOutputRow.id},"${escapeCsvField(errorOutputRow.job_title)}",${errorOutputRow.job_function},${errorOutputRow.job_seniority},"${escapeCsvField(errorOutputRow.standardized_job_title)}",${errorOutputRow.confidence}`;
+                                writeStream.write(line + '\n');
+                            });
+                            batchProcessedSuccessfully = true;
                         }
                     }
-                } else {
+                } catch (error) {
                     if (verbose) {
-                        process.stdout.write("Entire batch classification failed or returned no data. Writing original rows with error status.\n");
+                        process.stdout.write(`Error during batch processing: ${error}. Writing original rows with error status.\n`);
                     }
                     currentBatch.forEach(originalRow => {
                         const errorOutputRow: OutputRow = {
@@ -226,58 +261,54 @@ export async function processCsv(
                             standardized_job_title: "Error",
                             confidence: 0,
                         };
-                        const line = `${errorOutputRow.id},"${errorOutputRow.job_title}",${errorOutputRow.job_function},${errorOutputRow.job_seniority},"${errorOutputRow.standardized_job_title}",${errorOutputRow.confidence}`;
+                        const line = `${errorOutputRow.id},"${escapeCsvField(errorOutputRow.job_title)}",${errorOutputRow.job_function},${errorOutputRow.job_seniority},"${escapeCsvField(errorOutputRow.standardized_job_title)}",${errorOutputRow.confidence}`;
                         writeStream.write(line + '\n');
                     });
+                    batchProcessedSuccessfully = true; // Mark as processed (with error) to exit the while loop
                 }
-            } catch (error) {
-                if (verbose) {
-                    process.stdout.write(`Error during batch processing: ${error}. Writing original rows with error status.\n`);
-                }
-                currentBatch.forEach(originalRow => {
-                    const errorOutputRow: OutputRow = {
-                        id: originalRow.id,
-                        job_title: originalRow.job_title,
-                        job_function: "Error",
-                        job_seniority: "Error",
-                        standardized_job_title: "Error",
-                        confidence: 0,
-                    };
-                    const line = `${errorOutputRow.id},"${errorOutputRow.job_title}",${errorOutputRow.job_function},${errorOutputRow.job_seniority},"${errorOutputRow.standardized_job_title}",${errorOutputRow.confidence}`;
-                    writeStream.write(line + '\n');
-                });
-            } finally {
-                processedRowsCount += currentBatch.length;
-                if (verbose) {
-                    process.stdout.write(`Processed ${currentBatch.length} rows. Total processed: ${processedRowsCount}/${totalRowsInFile}\n`);
-                }
-
-                const elapsedTime = Date.now() - startTime;
-                const batchesProcessed = processedRowsCount / batchSize;
-                let estimatedRemainingTime = "calculating...";
-
-                if (batchesProcessed > 0) {
-                    const timePerBatch = elapsedTime / batchesProcessed;
-                    const remainingBatches = totalBatches - batchesProcessed;
-                    const estimatedRemainingMs = remainingBatches * timePerBatch;
-
-                    const seconds = Math.floor(estimatedRemainingMs / 1000);
-                    const minutes = Math.floor(seconds / 60);
-                    const hours = Math.floor(minutes / 60);
-
-                    if (hours > 0) {
-                        estimatedRemainingTime = `${hours}h ${minutes % 60}m ${seconds % 60}s remaining`;
-                    } else if (minutes > 0) {
-                        estimatedRemainingTime = `${minutes}m ${seconds % 60}s remaining`;
-                    } else {
-                        estimatedRemainingTime = `${seconds}s remaining`;
-                    }
-                }
-
-                onProgress(processedRowsCount, totalRowsInFile, totalBatches, estimatedTotalTime, estimatedRemainingTime);
             }
+
+            // This block runs once the batch is processed (successfully or after all retries)
+            processedRowsCount += currentBatch.length;
+            if (verbose) {
+                process.stdout.write(`Processed ${currentBatch.length} rows. Total processed: ${processedRowsCount}/${totalRowsInFile}\n`);
+            }
+
+            const elapsedTime = Date.now() - startTime;
+            const batchesProcessed = processedRowsCount / batchSize;
+            let estimatedRemainingTime = "calculating...";
+
+            if (batchesProcessed > 0) {
+                const timePerBatch = elapsedTime / batchesProcessed;
+                const remainingBatches = totalBatches - batchesProcessed;
+                const estimatedRemainingMs = remainingBatches * timePerBatch;
+
+                const seconds = Math.floor(estimatedRemainingMs / 1000);
+                const minutes = Math.floor(seconds / 60);
+                const hours = Math.floor(minutes / 60);
+
+                if (hours > 0) {
+                    estimatedRemainingTime = `${hours}h ${minutes % 60}m ${seconds % 60}s remaining`;
+                } else if (minutes > 0) {
+                    estimatedRemainingTime = `${minutes}m ${seconds % 60}s remaining`;
+                } else {
+                    estimatedRemainingTime = `${seconds}s remaining`;
+                }
+            }
+
+            onProgress(processedRowsCount, totalRowsInFile, totalBatches, estimatedTotalTime, estimatedRemainingTime);
         };
 
         readStream.pipe(csvStream);
     });
+}
+
+/**
+ * Escapes double quotes within a string for CSV output.
+ * Each double quote is replaced by two double quotes.
+ * @param field The string field to escape.
+ * @returns The escaped string.
+ */
+function escapeCsvField(field: string): string {
+    return field.replace(/"/g, '""');
 }

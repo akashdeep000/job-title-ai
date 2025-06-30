@@ -26,7 +26,7 @@ const argv = yargs(hideBin(process.argv))
         type: 'number',
         alias: 'rpm',
         description: 'Maximum number of AI requests per minute (for rate limiting)',
-        default: 30, // Default RPM to 30
+        default: 0, // Default RPM to 0 (no rate limiting)
     })
     .option('minWaitBetweenBatches', {
         type: 'number',

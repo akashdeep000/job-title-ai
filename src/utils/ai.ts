@@ -110,16 +110,23 @@ For each job title provided, extract:
 - Job Seniority (from enum)
 - Confidence (0 to 1)
 
-Return the original ID for each classification.
-
-Enums:
-Job Functions: ["Executive Decision Maker", "Finance", "Product", "Sales", "Customer success", "HR", "Marketing", "Communications", "Support", "Software Development", "Information Technology", "Manufacturing",
-"Engineering", "Logistics", "Operations", "Property Management", "Development", "Legal", "Sustainability", "HSEQ", "Project Management", "Other Commercial", "Administration", "Other"]
-
-Job Seniority: ["CEO", "Chief", "Managing Director", "Chairman of the Board", "Entrepreneur", "Founder",
-"Vice President", "President", "Director", "Head of", "Manager", "Lead", "Partner", "Executive", "Other"]
-
-Be cautious of misleading employer names.
+⚠️ VERY IMPORTANT RULES:
+- You MUST return exactly one JSON object per input row.
+- Do NOT skip rows, even if the title is unclear.
+- If uncertain, use 'Other' for both jobFunction and jobSeniority with low confidence.
+- Always echo the original 'id' field for each row, no changes.
+- Do NOT assume a job is related to Finance, Technology, or other functions based solely on the organization name or department mentioned after phrases like "at", "for", or "within".
+- Only classify based on the individual's actual role or title, NOT their employer or the organization they work for.
+- Example:
+    - "Special Advisor at Ministry of Finance" → Function: Other
+    - "Chief Financial Officer" → Function: Finance
+- Titles containing 'CTO' or 'Chief Technical Officer' → Function: Software Development
+- 'Toimitusjohtaja' or 'CEO' → Function: Executive Decision Maker
+- 'Hallituksen puheenjohtaja' (Chairman of the Board) → Function: Other
+- 'Restaurant Manager' → Function: Other
+- Titles containing 'laatu' or 'laatupäällikkö' → Function: HSEQ
+- 'Maintenance Manager', 'Production Manager', 'Tuotantopäällikkö', 'Tuotannonohjaaja' → Function: Manufacturing
+- 'Purchasing Manager', 'Warehouse Manager' → Function: Logistics
 
 Job Titles to classify:
 ${titlesList}`;
@@ -182,7 +189,7 @@ export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClass
         }
     };
 
-    const classifications = await retry(classifyAttempt, 3, 1000); // 3 retries, starting with 1 second delay
+    const classifications = await retry(classifyAttempt, 10, 2000); // 10 retries, starting with 2 second delay
 
     if (!classifications) {
         console.error(`Failed to classify job titles after multiple retries for batch starting with: "${jobs[0].job_title}"`);
