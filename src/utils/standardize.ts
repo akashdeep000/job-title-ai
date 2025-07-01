@@ -1,13 +1,11 @@
-function getStandardizedJobTitle(jobSeniority: string | null, jobFunction: string | null, prhDecisionMakerJobTitle: string | null = null) {
-    const seniority = jobSeniority ? jobSeniority.toLowerCase() : null;
-    const func = jobFunction ? jobFunction.toLowerCase() : null;
-    const prhTitle = prhDecisionMakerJobTitle ? prhDecisionMakerJobTitle.toLowerCase() : null;
+function getStandardizedJobTitle(jobSeniority: string, jobFunction: string, jobTitle: string | null = null) {
+    const seniority = jobSeniority.toLowerCase();
+    const func = jobFunction.toLowerCase();
+    const title = jobTitle ? jobTitle.toLowerCase() : null;
 
-    if (!seniority || !func) return null;
-
-    if (prhTitle === "toimitusjohtaja") return "Chief Executive Officer";
+    if (title === "toimitusjohtaja") return "Chief Executive Officer";
     if (["founder", "managing director", "entrepreneur", "chairman of the board", "ceo"].includes(seniority)) return "Executive Decision Maker";
-    if (prhTitle === "executive decision maker") return "Executive Decision Maker";
+    if (title === "executive decision maker") return "Executive Decision Maker";
     if (func === "other commercial") return "Other Commercial";
     if (func === "other") return "Other";
     if (seniority === "chief") return `Chief ${capitalize(func)} Officer`;

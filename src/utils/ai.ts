@@ -1,5 +1,6 @@
 import { ErrorDetails, GenerateContentResult, GenerativeModel, GoogleGenerativeAI, SchemaType, type GenerateContentRequest, type GenerationConfig, type Schema } from "@google/generative-ai";
 import { readFile } from "fs/promises";
+import { getStandardizedJobTitle } from "./standardize.js";
 
 let ai: GoogleGenerativeAI;
 
@@ -158,7 +159,7 @@ export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClass
     }
 
     const aiResult = JSON.parse(responseText);
-    const classifications = aiResult.classifications as JobClassification[];
+    const classifications = aiResult.classifications as Omit<JobClassification, "standardizedJobTitle">[];
 
     if (!classifications || classifications.length !== jobs.length) {
         throw new Error("AI response classification count mismatch.");
@@ -169,5 +170,8 @@ export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClass
     if (inputIds.size !== outputIds.size || ![...inputIds].every(id => outputIds.has(id))) {
         throw new Error("AI response classification ID mismatch.");
     }
-    return classifications;
+    return classifications.map(c => ({
+        ...c,
+        standardizedJobTitle: getStandardizedJobTitle(c.jobSeniority, c.jobFunction, jobs.find(j => j.id === c.id)?.job_title)
+    }));
 }
