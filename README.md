@@ -24,7 +24,7 @@ This tool uses Node.js, which comes with `npm` (Node Package Manager). If you do
         Open your Terminal and run:
         ```bash
         sudo apt update
-        sudo apt install nodejs npm
+        sudo apt install nodejs
         ```
 
 ### Step 2: Get the Tool (Clone the Repository)
