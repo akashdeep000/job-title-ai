@@ -1,4 +1,5 @@
 import { ErrorDetails, GenerateContentResult, GenerativeModel, GoogleGenerativeAI, SchemaType, type GenerateContentRequest, type GenerationConfig, type Schema } from "@google/generative-ai";
+import { readFile } from "fs/promises";
 
 let ai: GoogleGenerativeAI;
 
@@ -103,7 +104,8 @@ const generationConfig: GenerationConfig = {
     },
 };
 
-function buildAIPrompt(jobs: JobTitleInput[]): string {
+async function buildAIPrompt(jobs: JobTitleInput[]): Promise<string> {
+    const customAIRules = await readFile('./AI-RULES.md', 'utf8');
     const titlesList = jobs.map(job => `- ID: ${job.id}, Title: "${job.job_title}"`).join("\n");
     return `You are a job title classification expert.
 For each job title provided, extract:
@@ -118,18 +120,7 @@ For each job title provided, extract:
 - Do NOT skip rows, even if the title is unclear.
 - If uncertain, use 'Other' for both jobFunction and jobSeniority with low confidence.
 - Always echo the original 'id' field for each row, no changes.
-- Do NOT assume a job is related to Finance, Technology, or other functions based solely on the organization name or department mentioned after phrases like "at", "for", or "within".
-- Only classify based on the individual's actual role or title, NOT their employer or the organization they work for.
-- Example:
-    - "Special Advisor at Ministry of Finance" → Function: Other
-    - "Chief Financial Officer" → Function: Finance
-- Titles containing 'CTO' or 'Chief Technical Officer' → Function: Software Development
-- 'Toimitusjohtaja' or 'CEO' → Function: Executive Decision Maker
-- 'Hallituksen puheenjohtaja' (Chairman of the Board) → Function: Other
-- 'Restaurant Manager' → Function: Other
-- Titles containing 'laatu' or 'laatupäällikkö' → Function: HSEQ
-- 'Maintenance Manager', 'Production Manager', 'Tuotantopäällikkö', 'Tuotannonohjaaja' → Function: Manufacturing
-- 'Purchasing Manager', 'Warehouse Manager' → Function: Logistics
+${customAIRules}
 
 Job Titles to classify:
 ${titlesList}`;
@@ -143,7 +134,7 @@ export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClass
         contents: [
             {
                 role: "user",
-                parts: [{ text: buildAIPrompt(jobs) }],
+                parts: [{ text: await buildAIPrompt(jobs) }],
             },
         ],
     };

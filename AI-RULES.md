@@ -1,0 +1,12 @@
+- Do NOT assume a job is related to Finance, Technology, or other functions based solely on the organization name or department mentioned after phrases like "at", "for", or "within".
+- Only classify based on the individual's actual role or title, NOT their employer or the organization they work for.
+- Example:
+    - "Special Advisor at Ministry of Finance" → Function: Other
+    - "Chief Financial Officer" → Function: Finance
+- Titles containing 'CTO' or 'Chief Technical Officer' → Function: Software Development
+- 'Toimitusjohtaja' or 'CEO' → Function: Executive Decision Maker
+- 'Hallituksen puheenjohtaja' (Chairman of the Board) → Function: Other
+- 'Restaurant Manager' → Function: Other
+- Titles containing 'laatu' or 'laatupäällikkö' → Function: HSEQ
+- 'Maintenance Manager', 'Production Manager', 'Tuotantopäällikkö', 'Tuotannonohjaaja' → Function: Manufacturing
+- 'Purchasing Manager', 'Warehouse Manager' → Function: Logistics
