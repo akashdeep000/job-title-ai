@@ -128,7 +128,7 @@ ${titlesList}`;
 
 export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClassification[]> {
     const aiClient = getAiClient();
-    const model: GenerativeModel = aiClient.getGenerativeModel({ model: "gemini-2.5-flash-preview-04-17", generationConfig });
+    const model: GenerativeModel = aiClient.getGenerativeModel({ model: "gemini-2.5-flash-lite-preview-06-17", generationConfig });
 
     const request: GenerateContentRequest = {
         contents: [
@@ -148,6 +148,14 @@ export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClass
     }
     const response = result.response;
     const responseText = response.text();
+
+    const inputTokenCount = result.response.usageMetadata?.promptTokenCount;
+    const outputTokenCount = result.response.usageMetadata?.candidatesTokenCount;
+    console.log(`Input Token Count: ${inputTokenCount}`);
+    console.log(`Output Token Count: ${outputTokenCount}`);
+    if (inputTokenCount && outputTokenCount) {
+        console.log(`Total Token Count: ${inputTokenCount + outputTokenCount}`);
+    }
 
     const aiResult = JSON.parse(responseText);
     const classifications = aiResult.classifications as JobClassification[];
