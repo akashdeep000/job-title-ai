@@ -63,7 +63,7 @@ yargs(hideBin(process.argv))
   }, (argv) => {
     render(<App command="export" file={argv.file} statusFilter={argv.status} minConfidence={argv.minConfidence} />);
   })
-  .command('reset', 'Reset the database', () => {},
+  .command('reset', 'Reset the database (clears all data)', {},
   (argv) => {
     render(<App command="reset" />);
   })
