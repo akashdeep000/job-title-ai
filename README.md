@@ -4,8 +4,6 @@
 
 This tool helps you clean up and standardize job titles using Artificial Intelligence. If you have a list of job titles that are messy or inconsistent, this tool can make them uniform and easier to understand.
 
-Think of it like having a smart assistant that takes all your different ways of writing job titles (e.g., "Software Dev", "Sr. Software Engineer", "Software Engineer III") and turns them into a consistent format (e.g., "Software Engineer").
-
 ## Setup (First Time Only)
 
 Before you can use the Job Title AI Tool, you need to set up your computer. Don't worry, it's a one-time process!
@@ -62,67 +60,126 @@ This tool's code is stored in a place called a "repository" on the internet. You
 
 ### Step 3: Install Tool Dependencies
 
-Once you are inside the `job-title-ai` folder in your Terminal/Command Prompt, you need to install some additional parts the tool needs to run.
-
-Type the following command and press Enter:
+Once you are inside the `job-title-ai` folder in your Terminal/Command Prompt, install the dependencies with `npm`:
 ```bash
 npm install
 ```
 This might take a few moments.
 
-## How to Use It (Simple Steps)
+After installing dependencies, apply any pending database migrations:
+```bash
+npm run db:migrate
+```
+This command updates the database schema to the latest version and is a mandatory step before using the tool.
 
-Now that everything is set up, here's how to use the tool:
+## How to Use It
 
-### Step 1: Prepare Your Job Titles
+The Job Title AI tool is a command-line interface (CLI) application. You interact with it by typing commands in your terminal.
 
-You need your job titles in a file called `sample.csv`. This file should be a simple spreadsheet file where one of the columns contains the job titles you want to clean.
+To run a command, use `npm start <command>`.
 
-**Important:** Make sure your `sample.csv` file is in the same folder as this tool.
+**Important:** Before running process commands that interact with the AI, ensure you have set your Google Gemini API Key as an environment variable. For example:
+```bash
+export GEMINI_API_KEY="YOUR_GEMINI_API_KEY_HERE"
+# Or, for a single command:
+GEMINI_API_KEY="YOUR_GEMINI_API_KEY_HERE" npm start process
+```
 
-### Step 2: Run the Tool
+Here are the available commands:
 
-1.  **Open your computer's Terminal or Command Prompt.**
-    *   On Windows, search for "Command Prompt" or "PowerShell".
-    *   On Mac/Linux, search for "Terminal".
-2.  **Navigate to the tool's folder.** If you followed the setup, you should already be there. If not, use a command like `cd /path/to/job-title-ai` (replace `/path/to/job-title-ai` with the actual location where you saved this tool on your computer).
-3.  **Run the command:**
+### 1. `ingest <file>`
 
-    You need to provide your Google Gemini API Key to the tool. This key allows the tool to use the AI. Replace `YOUR_GEMINI_API_KEY_HERE` with your actual key.
+Ingest a CSV file into the database. This command reads your CSV file and stores the job titles in the tool's internal database, preparing them for processing.
 
-    ```bash
-    GEMINI_API_KEY="YOUR_GEMINI_API_KEY_HERE" npm start --input sample.csv --output output.csv --batchSize 10 --maxRequestsPerMinute 15
-    ```
+*   `<file>`: Path to the CSV file you want to ingest.
 
-    Let's break down this command:
-    *   `GEMINI_API_KEY="YOUR_GEMINI_API_KEY_HERE"`: This tells the tool your secret key for the AI. **Important: Replace `YOUR_GEMINI_API_KEY_HERE` with your actual key.**
-    *   `npm start`: This is the main command to run the tool.
-    *   `--input sample.csv`: This tells the tool that your job titles are in a file named `sample.csv`.
-    *   `--output output.csv`: This tells the tool to save the cleaned job titles to a new file named `output.csv`.
-    *   `--batchSize 10`: This means the tool will send 10 job titles at a time to the AI for cleaning. You can change this number.
-    *   `--maxRequestsPerMinute 15`: This limits how many times the tool talks to the AI in a minute (15 times). This helps avoid hitting limits. You can change this number.
+**Example:**
+```bash
+npm start ingest path/to/your/job_titles.csv
+```
 
-    (If `npm start` doesn't work, you might try `pnpm start` or `yarn start` if you have those installed, but remember to include the `GEMINI_API_KEY` and other arguments.)
+### 2. `process`
 
-### Step 3: Get Your Cleaned Titles
+Process job titles using the AI. This command sends the ingested job titles to the AI for standardization and cleaning.
 
-After the tool finishes running, it will create a new file called `output.csv` in the same folder. This `output.csv` file will contain your original data along with a new column showing the cleaned and standardized job titles.
+**Options:**
 
-## What You Get
+*   `--batchSize` or `-b` (number): Number of job titles to process in each AI batch.
+    *   Default: `10`
+*   `--requestsPerMinute` or `-rpm` (number): Maximum number of AI requests per minute (for rate limiting).
+    *   Default: `60`
+*   `--minWaitBetweenBatches` or `-wait` (number): Minimum wait time in milliseconds between AI batches (for rate limiting).
+    *   Default: `0` (0 means no minimum wait, RPM will control)
 
-The `output.csv` file will have:
-*   All the original information from your `sample.csv` file.
-*   An added column with the AI-cleaned job titles, making them consistent and easy to use for analysis or other purposes.
+**Note:** You cannot specify both `--requestsPerMinute` and `--minWaitBetweenBatches` simultaneously. Choose one or neither.
 
-## Troubleshooting (Basic Tips)
+**Examples:**
+```bash
+# Process with default settings
+npm start process
 
-*   **"Command not found" error when running `npm start`?**
-    *   You might need to install Node.js first. Search online for "install Node.js" for instructions.
-    *   Try `pnpm start` or `yarn start` instead if you have those installed.
-*   **`output.csv` not created?**
-    *   Make sure your `sample.csv` file is correctly placed in the same folder as the tool.
-    *   Check if there were any error messages in the Terminal/Command Prompt when you ran the tool.
-*   **Job titles don't look right?**
-    *   The AI does its best, but sometimes very unusual job titles might not be perfectly standardized. You might need to manually adjust a few if they are very unique.
+# Process 20 job titles per batch
+npm start process --batchSize 20
+# or
+npm start process -b 20
 
-If you have any questions, feel free to ask someone more technical for help!
+# Limit AI requests to 30 per minute
+npm start process --requestsPerMinute 30
+# or
+npm start process -rpm 30
+
+# Wait at least 1s between batches
+npm start process --minWaitBetweenBatches 1
+# or
+npm start process -wait 1
+```
+
+### 3. `export <file>`
+
+Export processed job titles to a CSV file. This command allows you to retrieve the standardized job titles from the database and save them to a new CSV file.
+
+*   `<file>`: Path to the CSV file where you want to save the exported data.
+
+**Options:**
+
+*   `--status` or `-s` (string): Filter by job title status (e.g., `completed`, `pending`, `failed`).
+*   `--minConfidence` or `-c` (number): Filter by minimum confidence score (0-1).
+
+**Examples:**
+```bash
+# Export all processed job titles to output.csv
+npm start export output.csv
+
+# Export only completed job titles
+npm start export completed_titles.csv --status completed
+# or
+npm start export -s completed completed_titles.csv
+
+# Export completed job titles with a minimum confidence of 0.8
+npm start export high_confidence_titles.csv --status completed --minConfidence 0.8
+# or
+npm start export -s completed -c 0.8 high_confidence_titles.csv
+```
+
+### 4. `reset`
+
+Reset the database. This command clears all data from the tool's internal database, allowing you to start fresh.
+
+**Example:**
+```bash
+npm start reset
+```
+
+### 5. Database Management
+
+These commands are for managing the database schema and viewing its contents.
+
+
+#### `db:studio`
+
+Open the database studio in your browser. This command launches a web-based interface that allows you to view and interact with the database contents directly.
+
+**Example:**
+```bash
+npm run db:studio
+```

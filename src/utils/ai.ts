@@ -1,4 +1,4 @@
-import { GenerativeModel, GoogleGenerativeAI, SchemaType, type GenerateContentRequest, type GenerationConfig, type Schema } from "@google/generative-ai";
+import { ErrorDetails, GenerateContentResult, GenerativeModel, GoogleGenerativeAI, SchemaType, type GenerateContentRequest, type GenerationConfig, type Schema } from "@google/generative-ai";
 
 let ai: GoogleGenerativeAI;
 
@@ -23,12 +23,13 @@ export interface JobClassification {
     jobFunction: string;
     jobSeniority: string;
     confidence: number;
+    standardizedJobTitle: string;
 }
 
 // Define the schema for a single job classification object
 const jobClassificationSchema: Schema = {
     type: SchemaType.OBJECT,
-    required: ["id", "jobFunction", "jobSeniority", "confidence"],
+    required: ["id", "jobFunction", "jobSeniority", "confidence", "standardizedJobTitle"],
     properties: {
         id: { type: SchemaType.STRING },
         jobFunction: {
@@ -83,6 +84,7 @@ const jobClassificationSchema: Schema = {
             format: "enum", // Explicitly define format as "enum"
         },
         confidence: { type: SchemaType.NUMBER },
+        standardizedJobTitle: { type: SchemaType.STRING },
     },
 };
 
@@ -109,6 +111,7 @@ For each job title provided, extract:
 - Job Function (from enum)
 - Job Seniority (from enum)
 - Confidence (0 to 1)
+- Standardized Job Title
 
 ⚠️ VERY IMPORTANT RULES:
 - You MUST return exactly one JSON object per input row.
@@ -132,31 +135,7 @@ Job Titles to classify:
 ${titlesList}`;
 }
 
-async function sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function retry<T>(
-    fn: () => Promise<T>,
-    maxRetries: number,
-    delayMs: number,
-    attempt = 1
-): Promise<T | null> {
-    try {
-        return await fn();
-    } catch (error) {
-        if (attempt <= maxRetries) {
-            console.warn(`Attempt ${attempt} failed. Retrying in ${delayMs}ms...`, error);
-            await sleep(delayMs);
-            return retry(fn, maxRetries, delayMs * 2, attempt + 1); // Exponential backoff
-        } else {
-            console.error(`Max retries (${maxRetries}) exceeded. Failed to execute function.`, error);
-            return null;
-        }
-    }
-}
-
-export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClassification[] | null> {
+export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClassification[]> {
     const aiClient = getAiClient();
     const model: GenerativeModel = aiClient.getGenerativeModel({ model: "gemini-2.5-flash-preview-04-17", generationConfig });
 
@@ -169,32 +148,27 @@ export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClass
         ],
     };
 
-    const classifyAttempt = async (): Promise<JobClassification[] | null> => {
-        try {
-            const result = await model.generateContent(request);
-            const response = result.response;
-            const responseText = response.text();
-
-            const aiResult = JSON.parse(responseText);
-            const classifications = aiResult.classifications as JobClassification[];
-
-            if (!classifications || classifications.length !== jobs.length) {
-                console.warn(`AI response mismatch: Expected ${jobs.length} classifications, got ${classifications ? classifications.length : 0}.`);
-                throw new Error("AI response classification count mismatch.");
-            }
-            return classifications;
-        } catch (err) {
-            // Re-throw to be caught by the retry mechanism
-            throw err;
-        }
-    };
-
-    const classifications = await retry(classifyAttempt, 10, 2000); // 10 retries, starting with 2 second delay
-
-    if (!classifications) {
-        console.error(`Failed to classify job titles after multiple retries for batch starting with: "${jobs[0].job_title}"`);
-        return null;
+    let result: GenerateContentResult;
+    try {
+        result = await model.generateContent(request);
+    } catch (e) {
+        const error = e as ErrorDetails
+        throw new Error(`AI error: ${error.reason ?? error.message}`);
     }
+    const response = result.response;
+    const responseText = response.text();
 
+    const aiResult = JSON.parse(responseText);
+    const classifications = aiResult.classifications as JobClassification[];
+
+    if (!classifications || classifications.length !== jobs.length) {
+        throw new Error("AI response classification count mismatch.");
+    }
+    const inputIds = new Set(jobs.map(job => job.id));
+    const outputIds = new Set(classifications.map(c => c.id));
+
+    if (inputIds.size !== outputIds.size || ![...inputIds].every(id => outputIds.has(id))) {
+        throw new Error("AI response classification ID mismatch.");
+    }
     return classifications;
 }

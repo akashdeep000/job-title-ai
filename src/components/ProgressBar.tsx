@@ -1,27 +1,41 @@
-import { Box, Text } from 'ink';
 import React from 'react';
+import { Box, Text } from 'ink';
 
 interface ProgressBarProps {
-    progress: number; // 0 to 100
-    width?: number;
-    character?: string;
-    estimatedRemainingTime?: string;
+  completed: number;
+  failed?: number; // Make failed optional
+  total: number;
+  width?: number;
 }
 
-const ProgressBar: React.FC<ProgressBarProps> = ({ progress, width = 20, character = '█', estimatedRemainingTime }) => {
-    const completedWidth = Math.round(progress / 100 * width);
-    const remainingWidth = width - completedWidth;
-
+const ProgressBar: React.FC<ProgressBarProps> = ({
+  completed,
+  failed = 0, // Default to 0 if not provided
+  total,
+  width = 40,
+}) => {
+  if (total === 0) {
     return (
-        <Box flexDirection="row">
-            <Text color="green">{character.repeat(completedWidth)}</Text>
-            <Text color="gray">{character.repeat(remainingWidth)}</Text>
-            <Text> {progress.toFixed(0)}%</Text>
-            {estimatedRemainingTime && progress < 100 && (
-                <Text> ({estimatedRemainingTime})</Text>
-            )}
-        </Box>
+      <Box>
+        <Text color="gray">{'░'.repeat(width)}</Text>
+      </Box>
     );
+  }
+
+  const completedPercent = completed / total;
+  const failedPercent = failed / total;
+
+  const completedWidth = Math.round(completedPercent * width);
+  const failedWidth = Math.round(failedPercent * width);
+  const remainingWidth = Math.max(0, width - completedWidth - failedWidth);
+
+  return (
+    <Box>
+      <Text color="green">{'█'.repeat(completedWidth)}</Text>
+      {failed > 0 && <Text color="red">{'█'.repeat(failedWidth)}</Text>}
+      <Text color="gray">{'░'.repeat(remainingWidth)}</Text>
+    </Box>
+  );
 };
 
 export default ProgressBar;

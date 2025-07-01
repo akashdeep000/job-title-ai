@@ -3,3 +3,6 @@ dist
 pnpm-lock.yaml
 input.csv
 output.csv
+*.csv
+local.db
+*.db
