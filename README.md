@@ -49,9 +49,9 @@ This tool's code is stored in a place called a "repository" on the internet. You
     *   On Mac/Linux, search for "Terminal".
 3.  **Copy the tool to your computer:** Type the following command and press Enter:
     ```bash
-    git clone [REPOSITORY_URL_HERE]
+    git clone https://github.com/akashdeep000/job-title-ai
     ```
-    **Note:** You'll need to replace `[REPOSITORY_URL_HERE]` with the actual web address of this tool's code. If you don't know it, ask the person who gave you this tool.
+
 4.  **Navigate into the tool's folder:**
     ```bash
     cd job-title-ai
