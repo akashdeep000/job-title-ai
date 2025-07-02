@@ -63,9 +63,17 @@ yargs(hideBin(process.argv))
   }, (argv) => {
     render(<App command="export" file={argv.file} statusFilter={argv.status} minConfidence={argv.minConfidence} />);
   })
-  .command('reset', 'Reset the database (clears all data)', {},
+  .command('reset', 'Reset various aspects of the database', (yargs) => {
+    return yargs
+      .option('type', {
+        type: 'string',
+        alias: 't',
+        description: 'Type of reset to perform: "full" (clears all data), "processed" (resets processed data to pending), or "retries" (resets failed and retry counts)',
+        choices: ['full', 'processed', 'retries'],
+      });
+  },
   (argv) => {
-    render(<App command="reset" />);
+    render(<App command="reset" type={argv.type as 'full' | 'processed' | 'retries'} />);
   })
   .demandCommand(1, 'You need at least one command before moving on')
   .help()

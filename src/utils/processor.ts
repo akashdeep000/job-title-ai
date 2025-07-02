@@ -125,6 +125,6 @@ export const processJobTitles = async (
     }
   };
 
-  const workers = Array(requestsPerMinute).fill(0).map(() => worker());
+  const workers = Array(minWaitBetweenBatches > 0 ? 1 : requestsPerMinute).fill(0).map(() => worker());
   await Promise.all(workers);
 };

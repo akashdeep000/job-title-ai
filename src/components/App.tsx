@@ -1,7 +1,7 @@
 import React from 'react';
+import { Export } from './Export.js';
 import { Ingest } from './Ingest.js';
 import { Process } from './Process.js';
-import { Export } from './Export.js';
 import { Reset } from './Reset.js';
 
 interface AppProps {
@@ -12,9 +12,10 @@ interface AppProps {
   minWaitBetweenBatches?: number;
   statusFilter?: string;
   minConfidence?: number;
+  type?: 'full' | 'processed' | 'retries';
 }
 
-const App: React.FC<AppProps> = ({ command, file, batchSize, requestsPerMinute, minWaitBetweenBatches, statusFilter, minConfidence }) => {
+const App: React.FC<AppProps> = ({ command, file, batchSize, requestsPerMinute, minWaitBetweenBatches, statusFilter, minConfidence, type }) => {
   switch (command) {
     case 'ingest':
       return <Ingest file={file!} />;
@@ -23,7 +24,7 @@ const App: React.FC<AppProps> = ({ command, file, batchSize, requestsPerMinute, 
     case 'export':
       return <Export file={file!} statusFilter={statusFilter} minConfidence={minConfidence} />;
     case 'reset':
-      return <Reset />;
+      return <Reset type={type!} />;
     default:
       return null;
   }

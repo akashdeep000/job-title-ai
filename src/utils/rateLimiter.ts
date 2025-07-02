@@ -22,22 +22,37 @@ export function createRateLimiter(maxRequestsPerMinute: number, minWaitBetweenBa
             });
         };
     } else if (maxRequestsPerMinute > 0) {
-        const interval = 60 * 1000 / maxRequestsPerMinute; // milliseconds per request
-        const limit = pLimit(maxRequestsPerMinute); // Allow maxRequestsPerMinute concurrent requests
+        const capacity = maxRequestsPerMinute; // Max tokens in the bucket (burst size)
+        const refillRate = maxRequestsPerMinute / (60 * 1000); // Tokens per millisecond
+        let tokens = capacity;
+        let lastRefillTime = Date.now();
 
-        let lastRequestTime = 0;
+        const limit = pLimit(maxRequestsPerMinute); // Still use p-limit for overall concurrency, but token bucket handles rate
+
+        const acquireToken = async () => {
+            const now = Date.now();
+            const timeElapsed = now - lastRefillTime;
+            lastRefillTime = now;
+
+            tokens = Math.min(capacity, tokens + timeElapsed * refillRate);
+
+            if (tokens >= 1) {
+                tokens -= 1;
+                return;
+            }
+
+            // Not enough tokens, calculate wait time
+            const tokensNeeded = 1 - tokens;
+            const waitTime = tokensNeeded / refillRate;
+
+            tokens = 0; // Consume remaining fractional tokens
+
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        };
 
         return async (fn: () => Promise<any>) => {
             return limit(async () => {
-                const now = Date.now();
-                const timeSinceLastRequest = now - lastRequestTime;
-
-                if (timeSinceLastRequest < interval) {
-                    const timeToWait = interval - timeSinceLastRequest;
-                    await new Promise(resolve => setTimeout(resolve, timeToWait));
-                }
-
-                lastRequestTime = Date.now();
+                await acquireToken();
                 return fn();
             });
         };

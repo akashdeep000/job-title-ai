@@ -152,8 +152,8 @@ export async function classifyJobTitles(jobs: JobTitleInput[]): Promise<JobClass
 
     const inputTokenCount = result.response.usageMetadata?.promptTokenCount;
     const outputTokenCount = result.response.usageMetadata?.candidatesTokenCount;
-    console.log(`Input Token Count: ${inputTokenCount}`);
-    console.log(`Output Token Count: ${outputTokenCount}`);
+    // console.log(`Input Token Count: ${inputTokenCount}`);
+    // console.log(`Output Token Count: ${outputTokenCount}`);
     if (inputTokenCount && outputTokenCount) {
         console.log(`Total Token Count: ${inputTokenCount + outputTokenCount}`);
     }

@@ -1,29 +1,61 @@
 import { Box, Text } from 'ink';
+import SelectInput from 'ink-select-input';
 import React, { useEffect, useState } from 'react';
 import { resetDatabase } from '../utils/db.js';
 
-export const Reset: React.FC = () => {
+interface ResetProps {
+  type?: 'full' | 'processed' | 'retries';
+}
+
+export const Reset: React.FC<ResetProps> = ({ type: initialType }) => {
+  const [selectedType, setSelectedType] = useState<'full' | 'processed' | 'retries' | undefined>(initialType);
   const [status, setStatus] = useState('Initializing...');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const runReset = async () => {
+      if (!selectedType) {
+        setStatus('Awaiting type selection...');
+        return;
+      }
+
       try {
-        setStatus('Resetting database...');
-        await resetDatabase();
-        setStatus('Database reset complete!');
+        setStatus(`Resetting ${selectedType} data...`);
+        await resetDatabase(selectedType);
+        setStatus(`${selectedType} data reset complete!`);
       } catch (err) {
         setError(`Error: ${err instanceof Error ? err.message : String(err)}`);
-        setStatus('Database reset failed.');
+        setStatus(`${selectedType} data reset failed.`);
       }
     };
 
     runReset();
-  }, []);
+  }, [selectedType]);
+
+  const handleSelect = (item: { value: 'full' | 'processed' | 'retries' }) => {
+    setSelectedType(item.value);
+  };
+
+  if (!selectedType) {
+    const items: { label: string; value: 'full' | 'processed' | 'retries' }[] = [
+      { label: 'Full Reset (clears all data)', value: 'full' },
+      { label: 'Reset Processed Data (reverts to pending)', value: 'processed' },
+      { label: 'Reset Failed and Retry Counts', value: 'retries' },
+    ];
+
+    return (
+      <Box flexDirection="column" padding={1}>
+        <Text bold color="cyan">Select Reset Type</Text>
+        <Box marginTop={1}>
+          <SelectInput items={items} onSelect={handleSelect} />
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column" padding={1}>
-      <Text bold color="cyan">Resetting Database</Text>
+      <Text bold color="cyan">Resetting Data</Text>
       <Box marginTop={1}>
         <Text color={error ? 'red' : 'yellow'}>{status}</Text>
       </Box>
@@ -32,9 +64,9 @@ export const Reset: React.FC = () => {
           <Text color="red">{error}</Text>
         </Box>
       )}
-      {!error && status === 'Database reset complete!' && (
+      {!error && status.includes('complete!') && (
         <Box marginTop={1}>
-          <Text color="green">Database has been successfully reset.</Text>
+          <Text color="green">Data has been successfully reset.</Text>
         </Box>
       )}
     </Box>

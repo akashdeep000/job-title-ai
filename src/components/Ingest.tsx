@@ -78,7 +78,7 @@ export const Ingest: React.FC<IngestProps> = ({ file }) => {
       )}
       <Box marginTop={1}>
         <ProgressBar completed={ingestedRows} total={totalRows} failed={0} />
-        <Text color="white"> ({ingestedRows}/{totalRows} rows)</Text>
+        <Text color="white"> {totalRows === 0 ? "0.00" : (((ingestedRows / totalRows * 100)).toFixed(2))}% ({ingestedRows}/{totalRows} rows)</Text>
       </Box>
       {progress < 100 && !error && (
         <Box marginTop={1}>
