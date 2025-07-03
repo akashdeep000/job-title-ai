@@ -16,11 +16,13 @@ export const Process: React.FC<ProcessProps> = ({ batchSize, requestsPerMinute, 
   const [progress, setProgress] = useState(0);
   const [processedCount, setProcessedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalCost, setTotalCost] = useState(0);
 
   useEffect(() => {
-    const onProgress = (currentProcessed: number, total: number) => {
+    const onProgress = (currentProcessed: number, total: number, currentTotalCost: number) => {
       setProcessedCount(currentProcessed);
       setTotalCount(total);
+      setTotalCost(currentTotalCost);
       if (total > 0) {
         setProgress(Math.min(100, (currentProcessed / total) * 100));
       }
@@ -45,7 +47,7 @@ export const Process: React.FC<ProcessProps> = ({ batchSize, requestsPerMinute, 
     <Box flexDirection="column" padding={1}>
       <Text bold color="cyan">Job Title Processing</Text>
       <Box marginTop={1}>
-        <Status />
+        <Status totalCost={totalCost} />
       </Box>
       <Box marginTop={1}>
         <Text color={error ? 'red' : 'yellow'}>{processingStatus}</Text>

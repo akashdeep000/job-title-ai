@@ -19,7 +19,7 @@ interface StatusCounts {
 
 import ProgressBar from './ProgressBar.js';
 
-export const Status: React.FC = () => {
+export const Status: React.FC<{ totalCost: number }> = ({ totalCost }) => {
   const [counts, setCounts] = useState<StatusCounts>({
     total: 0,
     pending: 0,
@@ -31,6 +31,12 @@ export const Status: React.FC = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [estimatedTime, setEstimatedTime] = useState(0);
   const [history, setHistory] = useState<{ timestamp: number; completed: number }[]>([]);
+  const [startingCounts, setStartingCounts] = useState<StatusCounts|null>(null);
+  const [estimetedTotalCost, setEstimatedTotalCost] = useState(0.00);
+
+  useEffect(() => {
+    setEstimatedTotalCost(((counts.pending/(counts.completed - (startingCounts?.completed || 0))) * (totalCost || 0)) + totalCost);
+  }, [totalCost, counts]);
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -59,7 +65,9 @@ export const Status: React.FC = () => {
       });
 
       setCounts({ ...newCounts, total });
-
+      if (!startingCounts) {
+        setStartingCounts({ ...newCounts, total });
+      }
       if (newCounts.processing > 0 && !startTime) {
         setStartTime(Date.now());
       }
@@ -172,6 +180,18 @@ export const Status: React.FC = () => {
           <Text>
             {' '}
             Estimated Time Remaining: <Text color="magenta">{formatTime(estimatedTime)}</Text>
+          </Text>
+        </Box>
+        <Box  marginTop={1}>
+          <Text>
+            {' '}
+            Total Cost: <Text color="magenta">${totalCost.toFixed(6)}</Text>
+          </Text>
+        </Box>
+        <Box>
+          <Text>
+            {' '}
+            Estimated Total Cost: <Text color="magenta">${estimetedTotalCost.toFixed(6)}</Text>
           </Text>
         </Box>
       </Box>

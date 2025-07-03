@@ -13,8 +13,10 @@ const MAX_RETRIES = 5;
 
 type Job = typeof jobTitles.$inferSelect;
 
+import { getTotalAICost } from './ai.js';
+
 export const processJobTitles = async (
-  onProgress: (processed: number, total: number) => void,
+  onProgress: (processed: number, total: number, totalCost: number) => void,
   batchSize: number = 10,
   requestsPerMinute: number = 60,
   minWaitBetweenBatches: number = 0,
@@ -84,7 +86,8 @@ export const processJobTitles = async (
       }).where(inArray(jobTitles.id, batchIds));
     } finally {
       processedCount += batch.length;
-      onProgress(processedCount, totalCount);
+      const currentTotalCost = getTotalAICost();
+      onProgress(processedCount, totalCount, currentTotalCost);
     }
   };
 
