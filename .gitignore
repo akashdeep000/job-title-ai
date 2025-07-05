@@ -5,4 +5,4 @@ input.csv
 output.csv
 *.csv
 local.db
-*.db
+*.db*

@@ -1,8 +1,9 @@
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
+import path from 'path';
 import React, { useEffect, useState } from 'react';
-import { processJobTitles } from '../utils/processor.js';
-import { Status } from './Status.js';
+import { Worker } from 'worker_threads';
+import { useAppContext } from './AppContext.js';
 
 interface ProcessProps {
   batchSize?: number;
@@ -11,66 +12,67 @@ interface ProcessProps {
 }
 
 export const Process: React.FC<ProcessProps> = ({ batchSize, requestsPerMinute, minWaitBetweenBatches }) => {
-  const [processingStatus, setProcessingStatus] = useState('Initializing...');
+  const { setAppState } = useAppContext();
+  const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [processedCount, setProcessedCount] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalCost, setTotalCost] = useState(0);
 
   useEffect(() => {
-    const onProgress = (currentProcessed: number, total: number, currentTotalCost: number) => {
-      setProcessedCount(currentProcessed);
-      setTotalCount(total);
-      setTotalCost(currentTotalCost);
-      if (total > 0) {
-        setProgress(Math.min(100, (currentProcessed / total) * 100));
-      }
-    };
+    console.log("Process component useEffect fired. Attempting to create worker...");
+    let worker: Worker | undefined;
+    try {
+      const workerPath = path.resolve(process.cwd(), 'dist', 'utils', 'process.worker.js');
+      console.log(`Worker path resolved to: ${workerPath}`);
+      worker = new Worker(workerPath);
+      console.log("Worker created successfully.");
 
-    const runProcessing = async () => {
-      try {
-        setProcessingStatus('Processing job titles...');
-        await processJobTitles(onProgress, batchSize, requestsPerMinute, minWaitBetweenBatches);
-        setProcessingStatus('Processing complete!');
-        setProgress(100);
-      } catch (err) {
-        setError(`Error: ${err instanceof Error ? err.message : String(err)}`);
-        setProcessingStatus('Processing failed.');
-      }
-    };
+      worker.on('message', (message) => {
+        if (message.type === 'progress') {
+          setAppState(prev => ({ ...prev, ...message.payload }));
+        } else if (message.type === 'done') {
+          setIsComplete(true);
+          worker?.terminate();
+        } else if (message.type === 'error') {
+          setError(`Error: ${message.payload}`);
+          worker?.terminate();
+        }
+      });
 
-    runProcessing();
-  }, [batchSize, requestsPerMinute, minWaitBetweenBatches]);
+      worker.on('error', (err) => {
+        setError(`Worker error: ${err.message}`);
+      });
+
+      worker.on('exit', (code) => {
+        if (code !== 0) {
+          setError(`Worker stopped with exit code ${code}`);
+        }
+      });
+
+      worker.postMessage({ batchSize, requestsPerMinute, minWaitBetweenBatches });
+
+    } catch (err) {
+      setError(`Failed to create worker: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(`Failed to create worker: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    return () => {
+      worker?.terminate();
+    };
+  }, [batchSize, requestsPerMinute, minWaitBetweenBatches, setAppState]);
 
   return (
     <Box flexDirection="column" padding={1}>
       <Text bold color="cyan">Job Title Processing</Text>
       <Box marginTop={1}>
-        <Status totalCost={totalCost} />
+        {!isComplete && !error && (
+          <Box>
+            <Text color="yellow">
+              <Spinner type="dots" /> Processing...
+            </Text>
+          </Box>
+        )}
+        {isComplete && <Text color="green">Processing complete!</Text>}
+        {error && <Text color="red">{error}</Text>}
       </Box>
-      <Box marginTop={1}>
-        <Text color={error ? 'red' : 'yellow'}>{processingStatus}</Text>
-      </Box>
-      {error && (
-        <Box>
-          <Text color="red">{error}</Text>
-        </Box>
-      )}
-
-      {progress < 100 && !error && (
-        <Box marginTop={1}>
-          <Text color="yellow">
-            <Spinner type="dots" />
-          </Text>
-          <Text color="white"> Processing...</Text>
-        </Box>
-      )}
-      {progress === 100 && !error && (
-        <Box marginTop={1}>
-          <Text color="green">Processing complete!</Text>
-        </Box>
-      )}
     </Box>
   );
 };

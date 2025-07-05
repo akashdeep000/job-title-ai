@@ -1,11 +1,11 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2cb5a3c4-e21e-46b3-a25e-8de4e70f9206",
+  "id": "68a9cd1c-7b5d-4320-a58e-9b86dc519eb2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
-    "job_titles": {
-      "name": "job_titles",
+    "job": {
+      "name": "job",
       "columns": {
         "id": {
           "name": "id",
@@ -14,28 +14,50 @@
           "notNull": true,
           "autoincrement": false
         },
+        "unique_job_table_id": {
+          "name": "unique_job_table_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "job_unique_job_table_id_unique_job_id_fk": {
+          "name": "job_unique_job_table_id_unique_job_id_fk",
+          "tableFrom": "job",
+          "tableTo": "unique_job",
+          "columnsFrom": [
+            "unique_job_table_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "unique_job": {
+      "name": "unique_job",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
         "job_title": {
           "name": "job_title",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "retry_count": {
-          "name": "retry_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 0
         },
         "job_function": {
           "name": "job_function",
@@ -58,34 +80,41 @@
           "notNull": false,
           "autoincrement": false
         },
-        "standardized_job_title": {
-          "name": "standardized_job_title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
+        "status": {
+          "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "default": "'pending'"
         }
       },
       "indexes": {
+        "unique_job_job_title_unique": {
+          "name": "unique_job_job_title_unique",
+          "columns": [
+            "job_title"
+          ],
+          "isUnique": true
+        },
+        "job_titles_idx": {
+          "name": "job_titles_idx",
+          "columns": [
+            "job_title"
+          ],
+          "isUnique": false
+        },
         "status_idx": {
           "name": "status_idx",
           "columns": [
             "status"
+          ],
+          "isUnique": false
+        },
+        "confidence_idx": {
+          "name": "confidence_idx",
+          "columns": [
+            "confidence"
           ],
           "isUnique": false
         }

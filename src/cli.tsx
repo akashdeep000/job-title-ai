@@ -2,6 +2,8 @@ import { render } from 'ink';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import App from './components/App.js';
+import { Main } from './components/Main.js';
+import { logger } from './utils/logger.js';
 
 yargs(hideBin(process.argv))
   .command('ingest <file>', 'Ingest a CSV file into the database', (yargs) => {
@@ -11,7 +13,8 @@ yargs(hideBin(process.argv))
       demandOption: true,
     });
   }, (argv) => {
-    render(<App command="ingest" file={argv.file} />);
+    logger.info(`Executing command: ingest, file: ${argv.file}`);
+    render(<Main><App command="ingest" file={argv.file} /></Main>);
   })
   .command('process', 'Process job titles using the AI', (yargs) => {
     return yargs
@@ -40,9 +43,10 @@ yargs(hideBin(process.argv))
         return true;
       });
   },
-  (argv) => {
-    render(<App command="process" batchSize={argv.batchSize} requestsPerMinute={argv.requestsPerMinute} minWaitBetweenBatches={argv.minWaitBetweenBatches} />);
-  })
+    (argv) => {
+      logger.info(`Executing command: process, batchSize: ${argv.batchSize}, requestsPerMinute: ${argv.requestsPerMinute}, minWaitBetweenBatches: ${argv.minWaitBetweenBatches}`);
+      render(<Main><App command="process" batchSize={argv.batchSize} requestsPerMinute={argv.requestsPerMinute} minWaitBetweenBatches={argv.minWaitBetweenBatches} /></Main>);
+    })
   .command('export <file>', 'Export processed job titles to a CSV file', (yargs) => {
     return yargs
       .positional('file', {
@@ -61,20 +65,22 @@ yargs(hideBin(process.argv))
         description: 'Filter by minimum confidence score (0-1)',
       });
   }, (argv) => {
-    render(<App command="export" file={argv.file} statusFilter={argv.status} minConfidence={argv.minConfidence} />);
+    logger.info(`Executing command: export, file: ${argv.file}, statusFilter: ${argv.status}, minConfidence: ${argv.minConfidence}`);
+    render(<Main><App command="export" file={argv.file} statusFilter={argv.status} minConfidence={argv.minConfidence} /></Main>);
   })
   .command('reset', 'Reset various aspects of the database', (yargs) => {
     return yargs
       .option('type', {
         type: 'string',
         alias: 't',
-        description: 'Type of reset to perform: "full" (clears all data), "processed" (resets processed data to pending), or "retries" (resets failed and retry counts)',
-        choices: ['full', 'processed', 'retries'],
+        description: 'Type of reset to perform: "processed" (Resets AI processed data) "full" (Clears all data)',
+        choices: ['processed', 'full'],
       });
   },
-  (argv) => {
-    render(<App command="reset" type={argv.type as 'full' | 'processed' | 'retries'} />);
-  })
+    (argv) => {
+      logger.info(`Executing command: reset, type: ${argv.type}`);
+      render(<Main><App command="reset" type={argv.type as 'full' | 'processed'} /></Main>);
+    })
   .demandCommand(1, 'You need at least one command before moving on')
   .help()
   .argv;

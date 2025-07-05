@@ -25,3 +25,4 @@ function capitalize(str: string) {
 }
 
 export { capitalize, getStandardizedJobTitle };
+

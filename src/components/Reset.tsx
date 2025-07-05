@@ -4,11 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { resetDatabase } from '../utils/db.js';
 
 interface ResetProps {
-  type?: 'full' | 'processed' | 'retries';
+  type?: 'full' | 'processed';
 }
 
 export const Reset: React.FC<ResetProps> = ({ type: initialType }) => {
-  const [selectedType, setSelectedType] = useState<'full' | 'processed' | 'retries' | undefined>(initialType);
+  const [selectedType, setSelectedType] = useState<'full' | 'processed' | undefined>(initialType);
   const [status, setStatus] = useState('Initializing...');
   const [error, setError] = useState<string | null>(null);
 
@@ -32,15 +32,14 @@ export const Reset: React.FC<ResetProps> = ({ type: initialType }) => {
     runReset();
   }, [selectedType]);
 
-  const handleSelect = (item: { value: 'full' | 'processed' | 'retries' }) => {
+  const handleSelect = (item: { value: 'full' | 'processed' }) => {
     setSelectedType(item.value);
   };
 
   if (!selectedType) {
-    const items: { label: string; value: 'full' | 'processed' | 'retries' }[] = [
+    const items: { label: string; value: 'full' | 'processed' }[] = [
+      { label: 'Reset Processed AI Data', value: 'processed' },
       { label: 'Full Reset (clears all data)', value: 'full' },
-      { label: 'Reset Processed Data (reverts to pending)', value: 'processed' },
-      { label: 'Reset Failed and Retry Counts', value: 'retries' },
     ];
 
     return (

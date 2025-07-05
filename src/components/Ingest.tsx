@@ -1,7 +1,9 @@
+import * as csv from 'fast-csv';
+import * as fs from 'fs';
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import React, { useEffect, useRef, useState } from 'react';
-import { ingestCsv } from '../utils/ingest.js';
+import { Worker } from 'worker_threads';
 import ProgressBar from './ProgressBar.js';
 
 interface IngestProps {
@@ -16,53 +18,99 @@ export const Ingest: React.FC<IngestProps> = ({ file }) => {
   const [ingestedRows, setIngestedRows] = useState(0);
   const [estimatedRemainingTime, setEstimatedRemainingTime] = useState('calculating...');
   const startTimeRef = useRef<number | null>(null);
+  const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
-    startTimeRef.current = Date.now();
-
-    const onProgress = (currentIngested: number, total: number) => {
-      setIngestedRows(currentIngested);
-      setTotalRows(total);
-      if (total > 0) {
-        setProgress(Math.min(100, (currentIngested / total) * 100));
-
-        if (startTimeRef.current) {
-          const elapsedSeconds = (Date.now() - startTimeRef.current) / 1000;
-          const rowsPerSecond = currentIngested / elapsedSeconds;
-          const remainingRows = total - currentIngested;
-          const estimatedSecondsRemaining = rowsPerSecond > 0 ? remainingRows / rowsPerSecond : Infinity;
-
-          if (estimatedSecondsRemaining === Infinity) {
-            setEstimatedRemainingTime('calculating...');
-          } else if (estimatedSecondsRemaining < 60) {
-            setEstimatedRemainingTime(`${estimatedSecondsRemaining.toFixed(0)}s remaining`);
-          } else if (estimatedSecondsRemaining < 3600) {
-            const minutes = Math.floor(estimatedSecondsRemaining / 60);
-            const seconds = (estimatedSecondsRemaining % 60).toFixed(0);
-            setEstimatedRemainingTime(`${minutes}m ${seconds}s remaining`);
-          } else {
-            const hours = Math.floor(estimatedSecondsRemaining / 3600);
-            const minutes = Math.floor((estimatedSecondsRemaining % 3600) / 60);
-            setEstimatedRemainingTime(`${hours}h ${minutes}m remaining`);
-          }
-        }
-      }
+    const countRows = async () => {
+      let count = 0;
+      return new Promise<number>((resolve, reject) => {
+        fs.createReadStream(file)
+          .pipe(csv.parse({ headers: true }))
+          .on('data', () => count++)
+          .on('end', () => resolve(count))
+          .on('error', reject);
+      });
     };
 
-    const runIngestion = async () => {
+    const startIngestion = async () => {
       try {
+        setStatus('Counting rows...');
+        const total = await countRows();
+        setTotalRows(total);
         setStatus('Ingesting CSV...');
-        await ingestCsv(file, onProgress);
-        setStatus('Ingestion complete!');
-        setProgress(100);
-        setEstimatedRemainingTime('Done');
+
+        const worker = new Worker(new URL('../utils/ingest.worker.js', import.meta.url));
+        workerRef.current = worker;
+        startTimeRef.current = Date.now();
+
+        worker.on('message', (msg) => {
+          if (msg.status === 'progress') {
+            const currentIngested = msg.ingested;
+            setIngestedRows(currentIngested);
+            if (total > 0) {
+              setProgress(Math.min(100, (currentIngested / total) * 100));
+
+              if (startTimeRef.current) {
+                const elapsedSeconds = (Date.now() - startTimeRef.current) / 1000;
+                const rowsPerSecond = currentIngested / elapsedSeconds;
+                const remainingRows = total - currentIngested;
+                const estimatedSecondsRemaining = rowsPerSecond > 0 ? remainingRows / rowsPerSecond : Infinity;
+
+                if (estimatedSecondsRemaining === Infinity) {
+                  setEstimatedRemainingTime('calculating...');
+                } else if (estimatedSecondsRemaining < 60) {
+                  setEstimatedRemainingTime(`${estimatedSecondsRemaining.toFixed(0)}s remaining`);
+                } else if (estimatedSecondsRemaining < 3600) {
+                  const minutes = Math.floor(estimatedSecondsRemaining / 60);
+                  const seconds = (estimatedSecondsRemaining % 60).toFixed(0);
+                  setEstimatedRemainingTime(`${minutes}m ${seconds}s remaining`);
+                } else {
+                  const hours = Math.floor(estimatedSecondsRemaining / 3600);
+                  const minutes = Math.floor((estimatedSecondsRemaining % 3600) / 60);
+                  setEstimatedRemainingTime(`${hours}h ${minutes}m remaining`);
+                }
+              }
+            }
+          } else if (msg.status === 'complete') {
+            setIngestedRows(total);
+            setStatus('Ingestion complete!');
+            setProgress(100);
+            setEstimatedRemainingTime('Done');
+            worker.terminate();
+          } else if (msg.status === 'error') {
+            setError(`Error: ${msg.error}`);
+            setStatus('Ingestion failed.');
+            worker.terminate();
+          }
+        });
+
+        worker.on('error', (err) => {
+          setError(`Worker error: ${err.message}`);
+          setStatus('Ingestion failed.');
+          worker.terminate();
+        });
+
+        worker.on('exit', (code) => {
+          if (code !== 0) {
+            // setError(`Worker stopped with exit code ${code}`);
+            // setStatus('Ingestion failed.');
+          }
+        });
+
+        worker.postMessage({ filePath: file });
       } catch (err) {
         setError(`Error: ${err instanceof Error ? err.message : String(err)}`);
         setStatus('Ingestion failed.');
       }
     };
 
-    runIngestion();
+    startIngestion();
+
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+      }
+    };
   }, [file]);
 
   return (
